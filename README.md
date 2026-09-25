@@ -20,6 +20,8 @@
 
 ## Уровень 1 — базовая упаковка
 
+![Docker version](screenshots/01-ИМЯ_ФАЙЛА.png)
+
 Первый вариант `Dockerfile` на базе `python:3.11`:
 
 - слои разложены под кэш: сначала `COPY requirements.txt` + `pip install`, затем `COPY main.py`, чтобы изменения в коде не инвалидировали слой с зависимостями;
@@ -27,7 +29,23 @@
 - запуск через `CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]`;
 - добавлен `.dockerignore` (`__pycache__`, `.git`, `venv`, `.env` и т.д.), чтобы не тащить мусор в контекст сборки.
 
+![requirements.txt и main.py](screenshots/02-ИМЯ_ФАЙЛА.png)
+
+![.dockerignore](screenshots/03-ИМЯ_ФАЙЛА.png)
+
+![ls -la](screenshots/04-ИМЯ_ФАЙЛА.png)
+
+![Dockerfile уровня 1](screenshots/05-ИМЯ_ФАЙЛА.png)
+
 **Проверка критерия готовности:**
+
+![docker build secure-api:v1](screenshots/06-ИМЯ_ФАЙЛА.png)
+
+![docker images secure-api:v1 — 1.64GB](screenshots/07-ИМЯ_ФАЙЛА.png)
+
+![docker run + docker ps](screenshots/08-ИМЯ_ФАЙЛА.png)
+
+![curl /health](screenshots/09-ИМЯ_ФАЙЛА.png)
 
 ```
 docker build -t secure-api:v1 .
@@ -43,6 +61,8 @@ curl http://localhost:8080/health
 
 Это и стало отправной точкой для оптимизации на следующих уровнях.
 
+![docker exec whoami / ps -ef / docker stop](screenshots/10-ИМЯ_ФАЙЛА.png)
+
 ## Уровень 2 — Multi-stage build
 
 `Dockerfile` переписан на two-stage сборку:
@@ -51,16 +71,13 @@ curl http://localhost:8080/health
 - **Stage `runtime`** (`python:3.11-slim`): из builder копируются только собранные `/wheels`, зависимости ставятся оффлайн через `pip install --no-index --find-links=/wheels`, после чего директория с wheel-файлами удаляется;
 - кэш `apt` чистится сразу же в том же `RUN`-слое (`rm -rf /var/lib/apt/lists/*`).
 
+![Dockerfile уровня 2 (multi-stage)](screenshots/11-ИМЯ_ФАЙЛА.png)
+
 **Результат:**
 
-```
-docker build -t secure-api:v2 .
-docker images secure-api:v2
-# secure-api:v2   235MB (content size 58.7MB)
+![docker build secure-api:v2 + docker images](screenshots/12-ИМЯ_ФАЙЛА.png)
 
-docker history secure-api:v2 | grep -i gcc
-# (пусто — компиляторы отсутствуют в финальных слоях)
-```
+![docker history | grep gcc](screenshots/13-ИМЯ_ФАЙЛА.png)
 
 Размер образа сокращён примерно в 7 раз (с 1.64 GB до ~235 MB / контентный размер 58.7 MB), критерий «< 150 MB» по контентному размеру слоёв выполнен, `gcc`/`build-essential` в финальном образе отсутствуют. Приложение по-прежнему отвечает на `/health` и `/hash`.
 
@@ -87,6 +104,8 @@ docker history secure-api:v2 | grep -i gcc
    ```
 4. **Graceful shutdown.** `CMD` используется в exec-форме (`CMD ["uvicorn", "main:app", ...]`), а не в shell-форме — процесс uvicorn получает `PID 1` и корректно обрабатывает `SIGTERM`.
 
+![Dockerfile уровня 3 (hardening)](screenshots/14-ИМЯ_ФАЙЛА.png)
+
 **Проверка на жёстких флагах из задания:**
 
 ```
@@ -100,6 +119,10 @@ docker run -d \
   --tmpfs /tmp \
   secure-api:v3
 ```
+
+![docker build v3 + docker run + healthcheck + non-root проверка](screenshots/15-ИМЯ_ФАЙЛА.png)
+
+![read-only FS, VOLUME для логов и graceful shutdown](screenshots/16-ИМЯ_ФАЙЛА.png)
 
 Результаты проверки:
 
