@@ -20,7 +20,7 @@
 
 ## Уровень 1 — базовая упаковка
 
-![Docker version](screenshots/2026-09-25 043912.png)
+![Docker version](screenshots/Снимок экрана 2026-09-25 043912.png)
 
 Первый вариант `Dockerfile` на базе `python:3.11`:
 
